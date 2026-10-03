@@ -1,0 +1,14 @@
+{
+  "eosPort": 3032,
+  "controlList": 2,
+  "revision": 1,
+  "eosHost": "127.0.0.1",
+  "transportUid": "",
+  "cueLists": [
+    1,
+    2
+  ],
+  "port": 38304,
+  "transportName": "show",
+  "director": "http://127.0.0.1"
+}

@@ -1,0 +1,8 @@
+config.json
+config.next.json
+*.log
+*.jsonl
+runtime/
+node_modules/
+tests/test-state/
+*.zip
