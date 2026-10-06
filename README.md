@@ -22,6 +22,10 @@ Windows x64 with Windows PowerShell 5.1 is required. Setup-Runtime.cmd installs 
 
 Overview shows both cue lists with search and auto-follow. Eos opens a keypad for Go to Cue on the configured control list, including point cues such as 0.3. Sending does not confirm that the console actually executed a cue.
 
+The current cue updates as soon as its fade starts. Auto-follow keeps it visible while enabled; untick it to browse freely. Cue lists remain available during catalogue refreshes and reconnects to the same console.
+
+On the Eos keypad, type a cue number and press Enter or Go to cue. Backspace edits and Escape clears. A successful send clears the entry; an unsuccessful send keeps it for correction. Missing cues show an error and are not sent. On first connection, wait for the cue catalogue to load before sending.
+
 Disguise controls and feedback follow the chosen transport. Fade up/down is Director-wide. Previous, Next and Previous End preserve playmode; Previous End targets one second before the current section begins, clamped to the previous section start.
 
 Disguise feedback uses one shared Live Update subscription connection, with reconnect and ping/pong health checks. Eos uses its OSC subscription/bank feedback. Browsers refresh the local cached state once a second. Cue catalogue queries run on connection and cue-change notifications.
@@ -41,3 +45,5 @@ Third-party notices are in runtime/LICENSE and vendor/ws/LICENSE.
 ## Tests
 
 With Node 22+, run `node tests/test-network.mjs`, `node tests/test-sharing.mjs`, and `node tests/test-eosguise.mjs`. These tests use local mock endpoints; no real show hardware is contacted.
+
+Cue regressions: `node test-active-cue.mjs`, `node test-cue-status.mjs`, `node test-cue-catalogue.mjs`, `node test-cue-reconnect.mjs`, `node test-cue-follow.mjs`, `node test-eos-picker.mjs`, and `node test-eos-picker-api.mjs`.

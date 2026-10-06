@@ -7,15 +7,48 @@ function followCurrent(){
   const row=$('#results'+list).querySelector('tr.current');
   if(!row)continue;
   const number=row.firstElementChild.textContent;
-  if(followed[list]===number)continue;
   const wrap=row.closest('.table-wrap');
   const bounds=wrap.getBoundingClientRect(),r=row.getBoundingClientRect();
-  wrap.scrollTop+=r.top-bounds.top-(wrap.clientHeight-r.height)/2;
+  // Follow is a viewport guarantee, not just a reaction to a new cue number.
+  // Keep clear of the sticky column header, including after a resize/rebuild.
+  if(followed[list]===number&&r.top>=bounds.top+36&&r.bottom<=bounds.top+wrap.clientHeight-8)continue;
+  if(wrap.clientHeight<=0)continue;
+  wrap.scrollTop+=r.top-bounds.top-(wrap.clientHeight-r.height+36)/2;
   followed[list]=number;
  }
 }
-function results(){const q=$('#query').value.trim().toLowerCase();for(const list of [1,2]){const found=cues.filter(c=>c.list===(state?.settings?.cueLists?.[list-1]||list)&&`${c.list}/${c.number} ${c.number} ${c.name}`.toLowerCase().includes(q));const body=$('#results'+list);const wrap=body.closest('.table-wrap'),scroll=wrap.scrollTop;body.replaceChildren();for(const c of found){const active=state?.eos.connected&&Date.now()-state.eos.lastReceived<15000&&state.eos.lists[state.settings.cueLists[list-1]]?.current?.number===c.number;const tr=document.createElement('tr');if(active)tr.className='current';for(const value of [c.number,c.name||'(Unlabelled)',active?'Current':'']){const td=document.createElement('td');td.textContent=value;tr.append(td);}body.append(tr);}$('#search-status'+list).textContent=found.length?`${found.length} cues`:'No matching cues';wrap.scrollTop=scroll;}followCurrent();}
-function render(){const eosFresh=state.eos.connected&&Date.now()-state.eos.lastReceived<15000;$('#connection').textContent=eosFresh&&state.disguise.connected?'Live · Read only':'Some sources unavailable';for(const l of [1,2]){const el=$('#list'+l),s=state.eos.lists[state.settings.cueLists[l-1]];el.querySelector('.card-head span').textContent='EOS · LIST '+state.settings.cueLists[l-1];document.querySelectorAll('.cue-column h3')[l-1].textContent='List '+state.settings.cueLists[l-1];el.classList.toggle('offline',!eosFresh);el.querySelector('.status').textContent=eosFresh?'Live':'Disconnected';el.querySelector('.list-name').textContent=s.name;el.querySelector('.cue-number').textContent=s.current?.number||'—';el.querySelector('.cue-name').textContent=s.current?.name||(eosFresh?'No active cue':'Waiting for Eos');el.querySelector('.next').textContent=s.next?`Next  ${s.next.number} · ${s.next.name}`:'Next cue unavailable';}const d=state.disguise;$('#disguise').classList.toggle('offline',!d.connected);$('#d-status').textContent=d.connected?'Live':'Disconnected';$('#track').textContent=d.track||'Waiting for Designer';$('#section').textContent=d.section?`Section ${d.section}${d.sectionName?' · '+d.sectionName:''}`:'…';$('#engaged').textContent=d.engaged===undefined?'Unknown':d.engaged?'Engaged':'Disengaged';$('#engaged').className=d.engaged?'engaged':'';$('#mode').textContent=({HoldSection:'Holding at section end',PlaySection:'Play to section end',Play:'Playing',Stop:'Stopped',LoopSection:'Loop section'})[d.playmode]||d.playmode||'Unknown';$('#output').textContent=({0:'Faded down',1:'Faded up',2:'Hold'})[d.output]||'Output unknown';$('#time').textContent=time(d.time);$('#section-time').textContent=time(d.sectionTime);$('#d-cue').textContent=d.cue||'None';$('#count').textContent=state.eos.loaded<state.eos.total?`Loading ${state.eos.loaded} / ${state.eos.total}`:`${cues.length} cues indexed`;}
+const renderedLists={},renderedListIds={};
+function results(){
+ const q=$('#query').value.trim().toLowerCase();
+ for(const list of [1,2]){
+  const listId=state?.settings?.cueLists?.[list-1]||list;
+  if(renderedListIds[list]!==listId){followed[list]=null;renderedListIds[list]=listId;}
+  const found=cues.filter(c=>c.list===listId&&`${c.list}/${c.number} ${c.number} ${c.name}`.toLowerCase().includes(q));
+  const current=state?.eos.connected&&Date.now()-state.eos.lastReceived<15000?state.eos.lists[listId]?.current?.number:null;
+  // Newly recorded cues can become active before the catalogue refresh completes.
+  if(!q&&current!=null&&!found.some(c=>Number(c.number)===Number(current))){
+   found.push({list:listId,number:current,name:state.eos.lists[listId].current.name||''});
+   found.sort((a,b)=>Number(a.number)-Number(b.number));
+  }
+  const body=$('#results'+list),wrap=body.closest('.table-wrap');
+  const signature=JSON.stringify([listId,found]);
+  if(renderedLists[list]!==signature){
+   const scroll=wrap.scrollTop,bounds=wrap.getBoundingClientRect();
+   const anchor=Array.from(body.children).find(row=>row.getBoundingClientRect().bottom>bounds.top+30);
+   const anchorNumber=anchor?.firstElementChild.textContent,offset=anchor?.getBoundingClientRect().top;
+   const rows=found.map(c=>{const tr=document.createElement('tr');for(const value of [c.number,c.name||'(Unlabelled)','']){const td=document.createElement('td');td.textContent=value;tr.append(td);}return tr;});
+   body.replaceChildren(...rows);renderedLists[list]=signature;
+   const replacement=rows.find(row=>row.firstElementChild.textContent===anchorNumber);
+   wrap.scrollTop=scroll;
+   if(replacement&&offset!==undefined)wrap.scrollTop+=replacement.getBoundingClientRect().top-offset;
+  }
+  for(const row of body.children){const active=current!=null&&Number(row.firstElementChild.textContent)===Number(current);row.classList.toggle('current',active);const label=active?'Current':'';if(row.lastElementChild.textContent!==label)row.lastElementChild.textContent=label;}
+  $('#search-status'+list).textContent=found.length?`${found.length} cues`:'No matching cues';
+ }
+ followCurrent();
+}
+
+function render(){const eosFresh=state.eos.connected&&Date.now()-state.eos.lastReceived<15000;$('#connection').textContent=eosFresh&&state.disguise.connected?'Live · Read only':'Some sources unavailable';for(const l of [1,2]){const el=$('#list'+l),s=state.eos.lists[state.settings.cueLists[l-1]];el.querySelector('.card-head span').textContent='EOS · LIST '+state.settings.cueLists[l-1];document.querySelectorAll('.cue-column h3')[l-1].textContent='List '+state.settings.cueLists[l-1];el.classList.toggle('offline',!eosFresh);el.querySelector('.status').textContent=eosFresh?'Live':'Disconnected';el.querySelector('.list-name').textContent=s.name;el.querySelector('.cue-number').textContent=s.current?.number||'—';el.querySelector('.cue-name').textContent=s.current?(s.current.name||'(Unlabelled)'):(eosFresh?'No active cue':'Waiting for Eos');el.querySelector('.next').textContent=s.next?`Next  ${s.next.number} · ${s.next.name}`:'Next cue unavailable';}const d=state.disguise;$('#disguise').classList.toggle('offline',!d.connected);$('#d-status').textContent=d.connected?'Live':'Disconnected';$('#track').textContent=d.track||'Waiting for Designer';$('#section').textContent=d.section?`Section ${d.section}${d.sectionName?' · '+d.sectionName:''}`:'…';$('#engaged').textContent=d.engaged===undefined?'Unknown':d.engaged?'Engaged':'Disengaged';$('#engaged').className=d.engaged?'engaged':'';$('#mode').textContent=({HoldSection:'Holding at section end',PlaySection:'Play to section end',Play:'Playing',Stop:'Stopped',LoopSection:'Loop section'})[d.playmode]||d.playmode||'Unknown';$('#output').textContent=({0:'Faded down',1:'Faded up',2:'Hold'})[d.output]||'Output unknown';$('#time').textContent=time(d.time);$('#section-time').textContent=time(d.sectionTime);$('#d-cue').textContent=d.cue||'None';$('#count').textContent=state.eos.loaded<state.eos.total?`Loading ${state.eos.loaded} / ${state.eos.total}`:`${cues.length} cues indexed`;}
 async function poll(){try{const r=await fetch('/api/state',{signal:AbortSignal.timeout(3000)});if(!r.ok)throw Error();state=await r.json();render();if(state.eos.loaded!==lastLoaded||Date.now()-lastCatalogue>15000){cues=await(await fetch('/api/cues',{signal:AbortSignal.timeout(3000)})).json();lastLoaded=state.eos.loaded;lastCatalogue=Date.now();}render();results();}catch{$('#connection').textContent='Page disconnected · Data may be old';document.querySelectorAll('article').forEach(el=>el.classList.add('offline'));}finally{setTimeout(poll,1000);}}
 try{$('#autofollow').checked=localStorage.getItem('show-follow-auto')!=='false';}catch{}
 $('#autofollow').addEventListener('change',()=>{
@@ -23,5 +56,10 @@ $('#autofollow').addEventListener('change',()=>{
  followed[1]=followed[2]=null;followCurrent();
 });
 $('#query').addEventListener('input',()=>{followed[1]=followed[2]=null;results();});poll();
+if(typeof ResizeObserver!=='undefined'){
+ const observer=new ResizeObserver(()=>followCurrent());
+ document.querySelectorAll('.table-wrap').forEach(wrap=>observer.observe(wrap));
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)followCurrent();});
 
 

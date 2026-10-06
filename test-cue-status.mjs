@@ -1,0 +1,12 @@
+import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
+const nodes=new Map();const node=key=>{if(!nodes.has(key))nodes.set(key,{textContent:'',className:'',classList:{toggle(){}},querySelector:s=>node(key+s)});return nodes.get(key);};
+const state={settings:{cueLists:[1,2]},eos:{connected:true,lastReceived:Date.now(),lists:{1:{name:'Lighting',current:{number:'280.2',name:''}},2:{name:'Video',current:null}},loaded:0,total:0},disguise:{connected:false}};
+const source=fs.readFileSync(new URL('./app.js',import.meta.url),'utf8');const render=source.slice(source.indexOf('function render()'),source.indexOf('async function poll()'));
+const context=vm.createContext({state,cues:[],Date,$:node,time:()=>'',document:{querySelectorAll:()=>[node('heading1'),node('heading2')]}});
+vm.runInContext(render+';render();',context);
+assert.equal(node('#list1.cue-number').textContent,'280.2');
+assert.equal(node('#list1.cue-name').textContent,'(Unlabelled)','Active unnamed cue must not be reported as absent');
+assert.equal(node('#list2.cue-name').textContent,'No active cue');
+state.eos.lists[1].current.name='Walk DS';vm.runInContext('render()',context);assert.equal(node('#list1.cue-name').textContent,'Walk DS');
+state.eos.connected=false;vm.runInContext('render()',context);assert.equal(node('#list2.cue-name').textContent,'Waiting for Eos');
+console.log('PASS: actual overview render distinguishes unnamed active cues, absent cues and disconnected feedback');
